@@ -7,6 +7,12 @@ class response:
         self.employee_id = None
         self.employee_email = None
 
+        self.otp_is_expired = None
+        self.incorrect_otp = None
+        self.otp_verified_successfull = None
+        
+
+
         
 
     def convertToJSON(self):
