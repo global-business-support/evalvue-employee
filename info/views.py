@@ -239,4 +239,35 @@ class EmployeeDashboardDataAPIView(APIView):
             res.is_review_mapped = False
             res.error = generic_error_message
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-      
+        
+class EmployeeReviewReportPIView(APIView):
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                organization_id = data.get("organization_id")
+                review_id = data.get("review_id")
+                report_message = data.get("report_message")
+                print(employee_id,organization_id,review_id,report_message)
+                with connection.cursor() as cursor:
+                    cursor.execute("INSERT INTO Report(Message,CreatedOn) VALUES(%s,GETDATE())",[report_message])
+                    cursor.execute("SELECT TOP 1 ReportId FROM Report ORDER BY CreatedOn DESC")
+                    report_id = cursor.fetchone()[0]
+                    cursor.execute("INSERT INTO ReportReviewEmployeeOrganizationMapping(ReportId,ReviewId,EmployeeId,OrganizationId,CreatedOn) VALUES(%s,%s,%s,%s,GETDATE())",[report_id,review_id,employee_id,organization_id])
+                    res.is_report_created_successfull = True
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_report_created_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_report_created_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)      
+
+

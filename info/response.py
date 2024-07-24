@@ -15,11 +15,8 @@ class response:
         self.organization_data_send_successfull = None
         self.review_list = None
         self.is_employee_organization_data_send_successfull =  None
-        self.is_review_mapped = None
-
-
-        
-
+        self.is_review_mapped = None  
+        self.is_report_created_successfull = None
     def convertToJSON(self):
         res = {}
         for attr_name, attr_value in vars(self).items():
