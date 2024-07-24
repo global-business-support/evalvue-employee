@@ -65,6 +65,7 @@ class ShootOtpToEmployeeAPIView(APIView):
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class VerifyOtpLoginAPIView(APIView):
+    @csrf_exempt
     def post(self, request):
         res = response()
         try:
@@ -108,6 +109,7 @@ class VerifyOtpLoginAPIView(APIView):
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 class EmployeeOrganizationDataPIView(APIView):
+    @csrf_exempt
     def post(self,request):
         res = response()
         try:
@@ -140,7 +142,8 @@ class EmployeeOrganizationDataPIView(APIView):
             res.error = generic_error_message
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class EmployeeReviewDataPIView(APIView):
+class EmployeeReviewDatAPIView(APIView):
+    @csrf_exempt
     def post(self,request):
         res = response()
         try:
@@ -188,3 +191,52 @@ class EmployeeReviewDataPIView(APIView):
             res.is_employee_organization_data_send_successfull = False
             res.error = generic_error_message
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class EmployeeDashboardDataAPIView(APIView):
+    @csrf_exempt
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                logger.info(data)
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT rem.ReviewId,r.Comment,r.Rating,r.CreatedOn,r.Image,org.OrganizationId,org.Name,emp.EmployeeId,emp.Name,emp.Designation,org.Image,emp.Image FROM ReviewEmployeeOrganizationMapping rem JOIN Review r ON rem.ReviewId = r.ReviewId JOIN Organization org ON rem.OrganizationId = org.OrganizationId JOIN Employee emp ON rem.EmployeeId = emp.EmployeeId ORDER BY r.CreatedOn DESC")
+                    rows = cursor.fetchall()
+                    reviews = []
+                    if rows:
+                        for row in rows:
+                            sql_server_time = row[3]
+                            formatted_time = convert_to_ist_time(sql_server_time)
+                            rev = review()
+                            rev.review_id = row[0]
+                            rev.comment = row[1]
+                            rev.rating = row[2]
+                            rev.created_on = formatted_time
+                            rev.image = row[4]
+                            rev.organization_id = row[5]
+                            rev.organization_name = row[6]
+                            rev.employee_id = row[7]
+                            rev.employee_name = row[8]
+                            rev.designation = row[9]
+                            rev.organization_image = row[10]
+                            rev.employee_image = row[11]
+                            reviews.append(rev.to_dict())
+                        res.dashboard_list = reviews
+                        res.is_review_mapped = True
+                    else:
+                        res.is_review_mapped = False
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_review_mapped = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_review_mapped = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+      
