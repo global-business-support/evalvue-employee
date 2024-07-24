@@ -10,6 +10,11 @@ class response:
         self.otp_is_expired = None
         self.incorrect_otp = None
         self.otp_verified_successfull = None
+        self.organization_list = None
+        self.organization_data_send_successfull = None
+        self.review_list = None
+        self.is_employee_organization_data_send_successfull =  None
+
         
 
 
