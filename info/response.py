@@ -6,6 +6,7 @@ class response:
         self.otp_send_successfull= None
         self.employee_id = None
         self.employee_email = None
+        self.dashboard_list = None
 
         self.otp_is_expired = None
         self.incorrect_otp = None
@@ -14,8 +15,7 @@ class response:
         self.organization_data_send_successfull = None
         self.review_list = None
         self.is_employee_organization_data_send_successfull =  None
-
-        
+        self.is_review_mapped = None
 
 
         
