@@ -2,7 +2,7 @@
 
 from django.urls import path
 from info import views
-from .views import EmployeeDashboardDataAPIView, EmployeeReviewDatAPIView, EmployeeReviewReportPIView, ShootOtpToEmployeeAPIView,VerifyOtpLoginAPIView,EmployeeOrganizationDataPIView
+from .views import EditEmployeeAPIview, EmployeeDashboardDataAPIView, EmployeeReviewDatAPIView, EmployeeReviewReportPIView, ShootOtpToEmployeeAPIView,VerifyOtpLoginAPIView,EmployeeOrganizationDataPIView
 urlpatterns = [
     path('hello/', views.hello_world, name='hello_world'),
     path('shoot/otp/',ShootOtpToEmployeeAPIView.as_view() , name='shoot_otp'),
@@ -11,4 +11,5 @@ urlpatterns = [
     path('employee/review/',EmployeeReviewDatAPIView.as_view() , name='employee_review'),
     path('employee/dashboard/',EmployeeDashboardDataAPIView.as_view(), name = 'dashboard'),
     path('report/',EmployeeReviewReportPIView.as_view() , name='report'), 
+    path('edit/employee/',EditEmployeeAPIview.as_view() , name='edit_employee'), 
 ]

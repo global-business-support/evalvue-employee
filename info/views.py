@@ -12,14 +12,12 @@ from Evalvue_Employee import settings
 from datetime import datetime, timedelta
 import datetime
 from django.db import connection,IntegrityError,transaction
-
-from info.utility import convert_to_ist_time
-
-
 from .response import *
 from  .constant import *
 from .organization import *
 from  .review import *
+from .common_regex import *
+from .utility import *
 
 logger = logging.getLogger('info')
 
@@ -250,7 +248,6 @@ class EmployeeReviewReportPIView(APIView):
                 organization_id = data.get("organization_id")
                 review_id = data.get("review_id")
                 report_message = data.get("report_message")
-                print(employee_id,organization_id,review_id,report_message)
                 with connection.cursor() as cursor:
                     cursor.execute("INSERT INTO Report(Message,CreatedOn) VALUES(%s,GETDATE())",[report_message])
                     cursor.execute("SELECT TOP 1 ReportId FROM Report ORDER BY CreatedOn DESC")
@@ -269,5 +266,74 @@ class EmployeeReviewReportPIView(APIView):
             res.is_report_created_successfull = False
             res.error = generic_error_message
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)      
+
+class EditEmployeeAPIview(APIView):
+    def post(self, request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                first_name = capitalize_words(data.get('first_name'))
+                last_name = capitalize_words(data.get('last_name'))
+                email = data.get("email")
+                mobile_number = data.get("mobile_number")   
+                employee_image = data.get("employee_image")
+                logger.info(data)
+                employee_name = first_name.strip() + " " + last_name.strip()
+                res.employee_edit_sucessfull = True
+                if not validate_name(employee_name):
+                    res.employee_edit_sucessfull = False
+                    res.error = 'Invalid Name'
+                elif not validate_email(email):
+                    res.employee_edit_sucessfull = False
+                    res.error = 'Invalid email'
+                elif not validate_mobile_number(mobile_number):
+                    res.employee_edit_sucessfull = False
+                    res.error = 'Invalid mobile number'
+                if not res.employee_edit_sucessfull:
+                    return Response(res.convertToJSON(), status=status.HTTP_400_BAD_REQUEST)
+                if validate_employee_on_edit(employee_id,email,None,None,res) or validate_employee_on_edit(employee_id,None,mobile_number,None,res):
+                    return Response(res.convertToJSON(), status=status.HTTP_400_BAD_REQUEST)
+                with connection.cursor() as cursor:      
+                    cursor.execute("SELECT Image FROM employee WHERE EmployeeId = %s", [employee_id])
+                    img = cursor.fetchone()
+                    old_image = img[0]
+                    if not isinstance(employee_image, str):
+                        is_image_valid = validate_file_extension(employee_image,res)
+                        is_image_size_valid = validate_file_size(employee_image,res)
+                        if is_image_valid and is_image_size_valid:
+                            employee_image = save_image(employee_image_path,employee_image)
+                            print(employee_image)
+                            if old_image:
+                                file_path = extract_path(old_image)
+                                delete_file(file_path)
+                        else:
+                            res.employee_edit_sucessfull = False
+                            return Response(res.convertToJSON(), status=status.HTTP_400_BAD_REQUEST)
+                    
+                        cursor.execute("update [Employee] set Name = %s, Email = %s, MobileNumber = %s, Image = %s, modifiedOn = GETDATE() WHERE EmployeeId = %s",[employee_name,email,mobile_number,employee_image,employee_id])
+                        res.employee_edit_sucessfull = True
+                        res.employee_id = employee_id
+                        return Response(res.convertToJSON(), status = status.HTTP_201_CREATED)
+                    else:
+                        cursor.execute("update [Employee] set Name = %s, Email = %s, MobileNumber = %s, modifiedOn = GETDATE() WHERE EmployeeId = %s",[employee_name,email,mobile_number,employee_id])
+                        res.employee_edit_sucessfull = True
+                        res.employee_id = employee_id
+                        return Response(res.convertToJSON(), status = status.HTTP_201_CREATED)
+
+                
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.employee_edit_sucessfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.employee_edit_sucessfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 
 
