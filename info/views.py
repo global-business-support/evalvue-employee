@@ -12,6 +12,10 @@ from Evalvue_Employee import settings
 from datetime import datetime, timedelta
 import datetime
 from django.db import connection,IntegrityError,transaction
+
+from info.utility import convert_to_ist_time
+
+from .employee import *
 from .response import *
 from  .constant import *
 from .organization import *
@@ -335,5 +339,51 @@ class EditEmployeeAPIview(APIView):
             res.error = generic_error_message
             return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+class EmployeeProfileAPIView(APIView):
+    @csrf_exempt
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                data = request.data
+                logger.info(data)
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT EmployeeId,Name,Email,MobileNumber,Image,AadharNumber,Designation FROM Employee WHERE EmployeeId = %s",[employee_id])
+                    row = cursor.fetchall()
+                    print(row)
+                    name = row[0][1]
+                    parts = name.split()
+                    if len(parts) >= 3:
+                        first_name = parts[0] + ' ' + parts[1]
+                        last_name = parts[2]
+                    else:
+                        first_name = parts[0]
+                        last_name = parts[1]
+                    profile = []
+                    for emp_id,emp_name,emp_email,emp_mobile,emp_image,emp_aadhar,emp_designation in row:
+                        emp = employee()
+                        emp.employee_id = emp_id
+                        emp.first_name = first_name
+                        emp.last_name = last_name
+                        emp.email = emp_email
+                        emp.mobile_number = emp_mobile
+                        emp.image = emp_image
+                        emp.aadhar_number = emp_aadhar
+                        emp.designation = emp_designation
+                        profile.append(emp.to_dict())
+                        res.employee_profile = profile
+                        res.is_employee_profile_successfull = True
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_employee_profile_successfull  = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_employee_profile_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
