@@ -14,6 +14,9 @@ class review:
         self.organization_image = None
         self.employee_image = None
         self.employee_email = None
+        self.is_reported = None
+        self.message = None
+        self.report_id= None
     def to_dict(self):
         rev = {}
         
