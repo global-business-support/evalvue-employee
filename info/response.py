@@ -20,6 +20,10 @@ class response:
         self.employee_edit_sucessfull = None
         self.employee_profile = None
         self.is_employee_profile_successfull = None
+        self.reported_reviews_list = None
+        self.is_reported_reviews_list_send_successfull = None
+        self.is_report_request_rejected_successfull = None
+        self.is_review_deleted_successfull  = None
     def convertToJSON(self):
         res = {}
         for attr_name, attr_value in vars(self).items():

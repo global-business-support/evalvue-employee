@@ -154,15 +154,7 @@ class EmployeeReviewDatAPIView(APIView):
                 employee_id = data.get("employee_id")
                 organization_id = data.get("organization_id")
                 with connection.cursor() as cursor:
-                    cursor.execute("SELECT Name, Image from Organization where OrganizationId = %s",[organization_id])
-                    organization_details = cursor.fetchone()
-                    organization_list = []
-                    org = organization()
-                    org.name = organization_details[0]
-                    org.image = organization_details[1]
-                    organization_list.append(org.to_dict())
-                    res.organization_list = organization_list
-                    cursor.execute("SELECT rem.ReviewId,r.Comment,r.Rating,r.CreatedOn,r.Image,org.OrganizationId,org.Name,org.Image FROM ReviewEmployeeOrganizationMapping rem JOIN Review r ON rem.ReviewId = r.ReviewId JOIN Organization org ON rem.OrganizationId = org.OrganizationId JOIN Employee emp ON rem.EmployeeId = emp.EmployeeId where rem.EmployeeId = %s and rem.OrganizationId = %s",[employee_id,organization_id])
+                    cursor.execute("SELECT rem.ReviewId,r.Comment,r.Rating,r.CreatedOn,r.Image,org.OrganizationId,org.Name,org.Image,rem.IsReported FROM ReviewEmployeeOrganizationMapping rem JOIN Review r ON rem.ReviewId = r.ReviewId JOIN Organization org ON rem.OrganizationId = org.OrganizationId JOIN Employee emp ON rem.EmployeeId = emp.EmployeeId where rem.EmployeeId = %s and rem.OrganizationId = %s",[employee_id,organization_id])
                     rows = cursor.fetchall()
                     if rows:
                         review_list = []
@@ -178,6 +170,10 @@ class EmployeeReviewDatAPIView(APIView):
                             rev.organization_id = row[5]
                             rev.organization_name = row[6]
                             rev.organization_image = row[7]
+                            if row[8] is None:
+                                rev.is_reported = 2
+                            else:
+                                rev.is_reported = row[8]
                             review_list.append(rev.to_dict())
                         res.review_list = review_list
                         res.is_employee_organization_data_send_successfull = True
@@ -256,7 +252,8 @@ class EmployeeReviewReportPIView(APIView):
                     cursor.execute("INSERT INTO Report(Message,CreatedOn) VALUES(%s,GETDATE())",[report_message])
                     cursor.execute("SELECT TOP 1 ReportId FROM Report ORDER BY CreatedOn DESC")
                     report_id = cursor.fetchone()[0]
-                    cursor.execute("INSERT INTO ReportReviewEmployeeOrganizationMapping(ReportId,ReviewId,EmployeeId,OrganizationId,CreatedOn) VALUES(%s,%s,%s,%s,GETDATE())",[report_id,review_id,employee_id,organization_id])
+                    cursor.execute("INSERT INTO ReportReviewEmployeeOrganizationMapping(ReportId,ReviewId,EmployeeId,OrganizationId,CreatedOn,IsReportRejected) VALUES(%s,%s,%s,%s,GETDATE(),%s)",[report_id,review_id,employee_id,organization_id,0])
+                    cursor.execute("UPDATE ReviewEmployeeOrganizationMapping set IsReported = 1,ModifiedOn = GETDATE() where ReviewId = %s",[review_id])
                     res.is_report_created_successfull = True
                     return Response(res.convertToJSON(), status=status.HTTP_200_OK)
         except IntegrityError as e:
@@ -386,4 +383,118 @@ class EmployeeProfileAPIView(APIView):
             logger.exception('An unexpected error occurred: {}'.format(str(e)))
             res.is_employee_profile_successfull = False
             res.error = generic_error_message
-            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class VerifyReportedReviewDataAPIView(APIView):
+    @csrf_exempt
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                logger.info(data)
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT rreom.ReviewId, r.Comment, r.rating, rreom.CreatedOn, r.[Image], rreom.[EmployeeId], e.[Name], e.[Image],e.Designation, rreom.[OrganizationId], o.[Name], o.[Image], reom.IsReported, rep.[Message], rreom.ReportId FROM [ReportReviewEmployeeOrganizationMapping] rreom JOIN Report rep ON rep.ReportId = rreom.ReportId JOIN [ReviewEmployeeOrganizationMapping] reom ON reom.ReviewId = rreom.ReviewId JOIN Review r ON r.ReviewId = rreom.ReviewId JOIN Employee e ON e.EmployeeId = rreom.EmployeeId JOIN Organization o ON o.OrganizationId = rreom.OrganizationId WHERE reom.IsReported = 1 and rreom.IsReportRejected = 0 ORDER BY rreom.CreatedOn desc")
+                    rows = cursor.fetchall()
+                    reported_reviews_list = []
+                    if rows:
+                        for row in rows:
+                            sql_server_time = row[3]
+                            formatted_time = convert_to_ist_time(sql_server_time)
+                            rev = review()
+                            rev.review_id = row[0]
+                            rev.comment = row[1]
+                            rev.rating = row[2]
+                            rev.created_on = formatted_time
+                            rev.image = row[4]
+                            rev.employee_id = row[5]
+                            rev.employee_name = row[6]
+                            rev.employee_image = row[7]
+                            rev.designation = row[8]
+                            rev.organization_id = row[9]
+                            rev.organization_name = row[10]
+                            rev.organization_image = row[11]
+                            rev.is_reported = row[12]
+                            rev.message = row[13]
+                            rev.report_id = row[14]
+                            reported_reviews_list.append(rev.to_dict())
+                    res.reported_reviews_list = reported_reviews_list
+                    res.is_reported_reviews_list_send_successfull= True
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_reported_reviews_list_send_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_reported_reviews_list_send_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class RejectReportedReviewRequestAPIView(APIView):
+    @csrf_exempt
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                review_id = data.get("review_id")
+                organization_id = data.get("organization_id")
+                report_id = data.get("report_id")
+                logger.info(data)
+                with connection.cursor() as cursor:
+                    cursor.execute("UPDATE [ReviewEmployeeOrganizationMapping] SET IsReported = NULL, ModifiedOn = GETDATE() WHERE ReviewId = %s and EmployeeId = %s and OrganizationId = %s",[review_id,employee_id,organization_id])
+                    cursor.execute("UPDATE [ReportReviewEmployeeOrganizationMapping] SET IsReportRejected = 1, ModifiedOn = GETDATE() WHERE ReportId = %s and ReviewId = %s and EmployeeId = %s and OrganizationId = %s",[report_id,review_id,employee_id,organization_id])
+                    res.is_report_request_rejected_successfull = True
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_report_request_rejected_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_report_request_rejected_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class DeleteReportedReviewAPIView(APIView):
+    @csrf_exempt
+    def post(self,request):
+        res = response()
+        try:
+            with transaction.atomic():
+                data = request.data
+                employee_id = data.get("employee_id")
+                review_id = data.get("review_id")
+                organization_id = data.get("organization_id")
+                report_id = data.get("report_id")
+                logger.info(data)
+                with connection.cursor() as cursor:
+                    cursor.execute("Delete from Review where ReviewId = %s",[review_id])
+                    res.is_review_deleted_successfull = True
+                    return Response(res.convertToJSON(), status=status.HTTP_200_OK)
+
+        except IntegrityError as e:
+            logger.exception('Database integrity error: {}'.format(str(e)))
+            res.is_review_deleted_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except Exception as e:
+            logger.exception('An unexpected error occurred: {}'.format(str(e)))
+            res.is_review_deleted_successfull = False
+            res.error = generic_error_message
+            return Response(res.convertToJSON(), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+
+

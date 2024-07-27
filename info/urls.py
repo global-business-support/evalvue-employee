@@ -3,7 +3,7 @@
 from django.urls import path
 from info import views
 
-from .views import EditEmployeeAPIview, EmployeeDashboardDataAPIView, EmployeeReviewDatAPIView, EmployeeReviewReportPIView, ShootOtpToEmployeeAPIView,VerifyOtpLoginAPIView,EmployeeOrganizationDataPIView
+from .views import DeleteReportedReviewAPIView, EditEmployeeAPIview, EmployeeDashboardDataAPIView, EmployeeReviewDatAPIView, EmployeeReviewReportPIView, RejectReportedReviewRequestAPIView, ShootOtpToEmployeeAPIView,VerifyOtpLoginAPIView,EmployeeOrganizationDataPIView, VerifyReportedReviewDataAPIView
 from .views import EmployeeDashboardDataAPIView, EmployeeProfileAPIView, EmployeeReviewDatAPIView, EmployeeReviewReportPIView, ShootOtpToEmployeeAPIView,VerifyOtpLoginAPIView,EmployeeOrganizationDataPIView
 urlpatterns = [
     path('hello/', views.hello_world, name='hello_world'),
@@ -16,5 +16,8 @@ urlpatterns = [
     path('edit/employee/',EditEmployeeAPIview.as_view() , name='edit_employee'), 
     path('employee/report/',EmployeeReviewReportPIView.as_view() , name='report'),
     path('employee/profile/',EmployeeProfileAPIView.as_view() , name='profile'),
+    path('reported/reviews/',VerifyReportedReviewDataAPIView.as_view() , name='reported_reviews'),
+    path('reject/review/request/',RejectReportedReviewRequestAPIView.as_view() , name='reject_review_request'),
+    path('delete/review/',DeleteReportedReviewAPIView.as_view() , name='delete_review'),
 
 ]

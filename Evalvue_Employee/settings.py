@@ -74,6 +74,7 @@ WSGI_APPLICATION = 'Evalvue_Employee.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
+database_media = 'http://test.api.evalvue.com/media/'
 evalvue_started_api = 'http://127.0.0.1:8000/'
 DATABASES = {
     'default': {
